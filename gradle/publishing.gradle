@@ -1,0 +1,38 @@
+def applicationPublishedJar = "service-${project.version.toString()}.jar"
+
+apply plugin: 'maven-publish'
+
+project(':service') {
+    build.doLast {
+        copy {
+            from "${project(':service').buildDir}/libs/${applicationPublishedJar}"
+            into "${rootProject.buildDir}/libs/"
+        }
+    }
+}
+
+publishing {
+
+    publications {
+
+        applicationJar(MavenPublication) {
+            groupId project.group
+            artifactId "apache-tika-service"
+            version "${project.version}"
+            print "File location " + "${rootProject.buildDir}/libs/${applicationPublishedJar}"
+            artifact file("${rootProject.buildDir}/libs/${applicationPublishedJar}")
+        }
+    }
+
+    repositories {
+        maven {
+            name "appdirectArtifactory"
+            url "https://artifactory.appdirect.tools/artifactory/libs-${project.version.endsWith('-SNAPSHOT') ? 'snapshot' : 'release'}-local"
+            credentials {
+                username = project.hasProperty('artifactoryUser') ? artifactoryUser : ""
+                password = project.hasProperty('artifactoryPass') ? artifactoryPass : ""
+            }
+        }
+    }
+
+}

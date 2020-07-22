@@ -1,0 +1,168 @@
+def buildGithubCoverage(jacocoFile, jacocoUrl) {
+    if (jacocoFile.exists()) {
+        def parser = new XmlSlurper()
+        parser.setFeature("http://apache.org/xml/features/disallow-doctype-decl", false)
+        parser.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
+        def totalCoverage = computeCoverage(parser.parse(jacocoFile))
+        def ut_coverage = computeCoverage(parser.parse("$project.buildDir/reports/jacoco/ut-jacoco.xml"))
+        def it_coverage = computeCoverage(parser.parse("$project.buildDir/reports/jacoco/it-jacoco.xml"))
+        def coverageFile = new File("$jacocoFile.parent/coverage.json")
+        coverageFile.write(buildGitHubComment(totalCoverage, ut_coverage, it_coverage, jacocoUrl))
+    }
+}
+
+def UTbuildGithubCoverage(jacocoFile, jacocoUrl) {
+    if (jacocoFile.exists()) {
+        def parser = new XmlSlurper()
+        parser.setFeature("http://apache.org/xml/features/disallow-doctype-decl", false)
+        parser.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+        def coverage = computeCoverage(parser.parse(jacocoFile))
+        def coverageFile = new File("$jacocoFile.parent/ut-coverage.json")
+        coverageFile.write(UTbuildGitHubComment(coverage, jacocoUrl))
+    }
+}
+
+def ITbuildGithubCoverage(jacocoFile, jacocoUrl) {
+    if (jacocoFile.exists()) {
+        def parser = new XmlSlurper()
+        parser.setFeature("http://apache.org/xml/features/disallow-doctype-decl", false)
+        parser.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+        def coverage = computeCoverage(parser.parse(jacocoFile))
+        def coverageFile = new File("$jacocoFile.parent/it-coverage.json")
+        coverageFile.write(ITbuildGitHubComment(coverage, jacocoUrl))
+    }
+}
+
+def buildGitHubComment(coverage, ut_coverage, it_coverage, jacocoUrl) {
+    """{"body": "# Coverage Summary \\n Coverage Type | Unit Test | Integration Test | Total Coverage \\n ------------ | ------------ | ------------ | ------------ \\n Instruction | ${
+        ut_coverage.instruction
+    }% | ${it_coverage.instruction}% | ${coverage.instruction}% \\n Branch | ${ut_coverage.branch}% | ${
+        ut_coverage.branch
+    }% | ${coverage.branch}% \\n Complexity | ${ut_coverage.complexity}% | ${it_coverage.complexity}% | ${
+        coverage.complexity
+    }% \\n Line | ${ut_coverage.line}% | ${it_coverage.line}% | ${coverage.line}% \\n Method | ${
+        ut_coverage.method
+    }% | ${it_coverage.method}% | ${coverage.method}% \\n Class | ${ut_coverage.clazz}% | ${it_coverage.clazz}% | ${
+        coverage.clazz
+    }% \\n # Details \\n- [Full report](${jacocoUrl})" }"""
+}
+
+def UTbuildGitHubComment(coverage, jacocoUrl) {
+    """{ "body": "# Unit Test Coverage Summary \\n- Instruction coverage: ${
+        coverage.instruction
+    }% \\n- Branch coverage: ${coverage.branch}% \\n- Complexity coverage: ${
+        coverage.complexity
+    }% \\n- Line coverage: ${coverage.line}% \\n- Method coverage: ${coverage.method}% \\n- Class coverage: ${
+        coverage.clazz
+    }% \\n# Details \\n- [Full report](${jacocoUrl})" }"""
+}
+
+def ITbuildGitHubComment(coverage, jacocoUrl) {
+    """{ "body": "# Integration Test Coverage Summary \\n- Instruction coverage: ${
+        coverage.instruction
+    }% \\n- Branch coverage: ${coverage.branch}% \\n- Complexity coverage: ${
+        coverage.complexity
+    }% \\n- Line coverage: ${coverage.line}% \\n- Method coverage: ${coverage.method}% \\n- Class coverage: ${
+        coverage.clazz
+    }% \\n# Details \\n- [Full report](${jacocoUrl})" }"""
+}
+
+def computeCoverage(jacocoXml) {
+    def lineCoverage = calculatePercentage(jacocoXml?.counter?.find { it.@type == "LINE" })
+    //def branchCoverage = calculatePercentage(jacocoXml?.counter?.find { it.@type == "BRANCH" })
+    def branchCoverage = 0
+    def complexityCoverage = calculatePercentage(jacocoXml?.counter?.find { it.@type == "COMPLEXITY" })
+    def instructionCoverage = calculatePercentage(jacocoXml?.counter?.find { it.@type == "INSTRUCTION" })
+    def classCoverage = calculatePercentage(jacocoXml?.counter?.find { it.@type == "CLASS" })
+    def methodCoverage = calculatePercentage(jacocoXml?.counter?.find { it.@type == "METHOD" })
+    [line: lineCoverage, branch: branchCoverage, complexity: complexityCoverage, instruction: instructionCoverage, clazz: classCoverage, method: methodCoverage]
+}
+
+def calculatePercentage(xmlLine) {
+    def missedLines = xmlLine?.@missed?.text()?.toInteger()
+    def coveredLines = xmlLine?.@covered?.text()?.toInteger()
+    def totalLines = missedLines + coveredLines
+    Math.round((coveredLines / totalLines) * 100)
+}
+
+task jacocoMerge(type: JacocoMerge) {
+    executionData subprojects.collect {
+        files("test/build/jacoco/unitTest.exec", "test/build/jacoco/integrationTest.exec")
+    }
+}
+
+task coverageReport(type: JacocoReport) {
+    dependsOn jacocoMerge
+    executionData jacocoMerge.destinationFile
+
+    sourceDirectories = files(subprojects.sourceSets.main.allSource.srcDirs)
+    classDirectories = files(subprojects.collect {
+        it.fileTree("$it.buildDir/classes")
+                .include(project.properties['jacoco.include'].split(','))
+    })
+    reports {
+        html.enabled = true
+        xml.enabled = true
+        xml.destination file("$project.buildDir/reports/jacoco/jacoco.xml")
+    }
+    doLast {
+        buildGithubCoverage(reports.xml.destination, project.properties['jacoco.url'])
+    }
+}
+
+task UTjacocoMerge(type: JacocoMerge) {
+    print "hello in UTjacocoMerge gradle file"
+    executionData subprojects.collect {
+        file("$it.buildDir/jacoco/unitTest.exec")
+    }.findAll {
+        it.exists()
+    }
+}
+
+task ITjacocoMerge(type: JacocoMerge) {
+    print "hello in ITcoverage gradle file"
+    executionData subprojects.collect {
+        file("$it.buildDir/jacoco/integrationTest.exec")
+    }.findAll {
+        it.exists()
+    }
+}
+
+task UTcoverage(type: JacocoReport) {
+    print "hello in UTcoverage gradle file"
+    dependsOn UTjacocoMerge
+    executionData UTjacocoMerge.destinationFile
+
+    sourceDirectories = files(subprojects.sourceSets.main.allSource.srcDirs)
+    classDirectories = files(subprojects.collect {
+        it.fileTree("$it.buildDir/classes")
+                .include(project.properties['jacoco.include'].split(','))
+    })
+    reports {
+        html.enabled = true
+        xml.enabled = true
+        xml.destination file("$project.buildDir/reports/jacoco/ut-jacoco.xml")
+    }
+    doLast {
+        UTbuildGithubCoverage(reports.xml.destination, project.properties['jacoco.url'])
+    }
+}
+
+task ITcoverage(type: JacocoReport) {
+    dependsOn ITjacocoMerge
+    executionData ITjacocoMerge.destinationFile
+
+    sourceDirectories = files(subprojects.sourceSets.main.allSource.srcDirs)
+    classDirectories = files(subprojects.collect {
+        it.fileTree("$it.buildDir/classes")
+                .include(project.properties['jacoco.include'].split(','))
+    })
+    reports {
+        html.enabled = true
+        xml.enabled = true
+        xml.destination file("$project.buildDir/reports/jacoco/it-jacoco.xml")
+    }
+    doLast {
+        ITbuildGithubCoverage(reports.xml.destination, project.properties['jacoco.url'])
+    }
+}

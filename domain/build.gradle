@@ -1,0 +1,11 @@
+dependencies {
+    implementation "org.springframework.boot:spring-boot-starter-webflux:${springBootVersion}"
+    testImplementation "org.springframework.boot:spring-boot-starter-test:${springBootVersion}"
+    implementation "com.google.guava:guava:${guavaVersion}"
+
+    implementation "io.swagger:swagger-annotations:${swaggerAnnotations}"
+    implementation "commons-io:commons-io:${commonsIo}"
+
+
+}
+sourceSets.main.java.srcDirs += ["${buildDir}/swagger-code/src/main/java"]

@@ -1,0 +1,7 @@
+rootProject.name = 'ApacheTika'
+
+include 'api'
+include 'service'
+include 'domain'
+include 'test'
+

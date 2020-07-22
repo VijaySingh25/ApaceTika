@@ -1,0 +1,19 @@
+apply plugin: 'org.springframework.boot'
+dependencies {
+    compile(
+            project(':domain'),
+            "io.micrometer:micrometer-core",
+            "io.zipkin.brave:brave-instrumentation-okhttp3:${braveVersion}",
+            "org.springframework.cloud:spring-cloud-starter-zipkin:${springBootVersion}",
+    )
+    runtime(
+            project(':api'),
+            "io.micrometer:micrometer-registry-prometheus:${prometheusVersion}"
+    )
+
+    compile("org.springframework.boot:spring-boot-starter-actuator:${springBootVersion}") {
+        exclude group: "com.fasterxml.jackson.datatype", module: "jackson-datatype-jsr310"
+    }
+
+    implementation "org.springframework.boot:spring-boot-starter-webflux:${springBootVersion}"
+}

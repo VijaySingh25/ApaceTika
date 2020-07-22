@@ -1,0 +1,93 @@
+plugins {
+    id 'java'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compile(
+            project(':api'),
+            project(':service'),
+            project(':service').sourceSets.main.output,
+            project(':domain').sourceSets.main.output,
+
+            // spring, reactor
+            "org.springframework.boot:spring-boot-starter-webflux:${springBootVersion}",
+            "io.projectreactor:reactor-test",
+
+            //test
+            "junit:junit:${junitVersion}",
+            "org.assertj:assertj-core:${assertJVersion}",
+            "org.springframework.boot:spring-boot-starter-test:${springBootVersion}",
+            "com.github.tomakehurst:wiremock:${wiremockVersion}",
+
+            // lombok
+            "org.projectlombok:lombok:${lombokVersion}",
+
+            // Apache commons lang
+            "org.apache.commons:commons-text:1.6",
+            "io.vavr:vavr:0.9.3",
+
+            // Reactor Adapter
+            "com.google.guava:guava:${guavaVersion}",
+            "org.testng:testng:${testng}",
+            "io.rest-assured:rest-assured:${restAssuredVersion}"
+
+    )
+
+    testCompile('au.com.dius:pact-jvm-provider-spring_2.12:3.5.14',) {
+        exclude group: "org.codehaus.groovy", module: "groovy-all"
+    }
+
+    testAnnotationProcessor("org.projectlombok:lombok:${lombokVersion}")
+    
+    testImplementation ("org.mockito:mockito-core:${mockitoVersion}")
+
+    testCompile(
+            "commons-io:commons-io:${commonsIo}",
+            "org.hamcrest:hamcrest:${hamcrestVersion}")
+}
+
+task unitTest(type: Test) {
+    group = 'verification'
+    useJUnit {
+        includeCategories 'com.appdirect.tika.categories.UnitTest'
+    }
+}
+
+task integrationTest(type: Test) {
+    group = 'verification'
+    useJUnit {
+        includeCategories 'com.appdirect.tika.categories.IntegrationTest'
+    }
+}
+
+def isPullRequest = {
+    return project.hasProperty('prNumber')
+}
+
+task buildSmokeTestJar(type: Jar) {
+    classifier = 'tests'
+    exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA', 'META-INF/*.MF'
+    manifest {
+        attributes 'Main-Class': 'com.appdirect.tika.smoketest.TaxIntegrationSmokeTest'
+    }
+    zip64 true
+    from {
+        configurations.compile.findAll { it.name.endsWith('jar') }.collect { zipTree(it) }
+    }
+    from sourceSets.test.output
+    from sourceSets.main.output
+}
+
+buildSmokeTestJar.doLast {
+    copy {
+        from "${project(':test').buildDir}/libs/test-${project.version.toString()}-tests.jar"
+        into "${rootProject.buildDir}/smoketest/"
+        rename {
+            String filename -> filename.replace("test-${project.version.toString()}-tests.jar", "tika-smoke-test.jar")
+        }
+    }
+}

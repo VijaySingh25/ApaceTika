@@ -1,0 +1,82 @@
+buildscript {
+    repositories {
+        jcenter()
+    }
+    dependencies {
+        classpath "com.bmuschko:gradle-docker-plugin:${dockerPluginVersion}"
+    }
+}
+
+apply plugin: com.bmuschko.gradle.docker.DockerRemoteApiPlugin
+
+import com.bmuschko.gradle.docker.tasks.image.DockerBuildImage
+import com.bmuschko.gradle.docker.tasks.image.DockerPushImage
+import com.bmuschko.gradle.docker.tasks.image.Dockerfile
+
+ext {
+    artifactVersion = project.version.toString()
+}
+
+docker {
+    registryCredentials {
+        url = "docker.appdirect.tools"
+        username = project.hasProperty('registryUser') ? registryUser : ""
+        password = project.hasProperty('registryPass') ? registryPass : ""
+    }
+}
+
+task buildDockerfile(type: Dockerfile) {
+
+    destFile = file("${buildDir}/Dockerfile")
+
+    from 'openjdk:8-jre-alpine'
+    runCommand 'addgroup -g 1000 tika'
+    runCommand 'adduser -S -u 1000 -g tika tika'
+    user 'ApacheTika'
+    copyFile "libs/service-${artifactVersion}.jar", "/opt/tika-service.jar"
+    environmentVariable "JAVA_OPTS", "\"-Xms384m -Xmx384m -XX:MaxMetaspaceSize=96m\""
+    exposePort 8080
+
+    entryPoint "/bin/sh", "-c", 'exec java -server $JAVA_OPTS -jar /opt/tika-service.jar'
+}
+
+task buildDockerImage(type: DockerBuildImage) {
+    dependsOn 'service:build', buildDockerfile
+
+    inputDir = buildDockerfile.destFile.parentFile
+    def tagVersion = project.hasProperty('dockerTagVersion') ? dockerTagVersion : artifactVersion
+    tag = "docker.appdirect.tools/appdirect-apache-tika:${tagVersion}"
+}
+
+task publishDockerImage(type: DockerPushImage) {
+    dependsOn buildDockerImage
+    imageName = buildDockerImage.tag
+}
+
+//Smoke test config
+task buildSmokeTestDockerfile(type: Dockerfile) {
+
+    destFile = file("${buildDir}/smoketest/Dockerfile")
+
+    from 'openjdk:8-jre-alpine'
+    runCommand 'addgroup -g 1000 tika-smoke-test'
+    runCommand 'adduser -S -u 1000 -g tika-smoke-test tika-smoke-test'
+    runCommand 'mkdir /test-output && chown tika-smoke-test:tika-smoke-test /test-output'
+    user 'tika-smoke-test'
+    copyFile "/tika-smoke-test.jar", "/opt/tika-service-smoke-test.jar"
+
+    entryPoint "/bin/sh", "-c", 'exec java -ea -jar /opt/tika-service-smoke-test.jar $EXTRA_ARGS'
+}
+
+task buildSmokeTestDockerImage(type: DockerBuildImage) {
+    dependsOn buildSmokeTestDockerfile
+
+    inputDir = buildSmokeTestDockerfile.destFile.parentFile
+    def tagVersion = project.hasProperty('dockerTagVersion') ? dockerTagVersion : artifactVersion
+    tag = "docker.appdirect.tools/appdirect-tika/tika-service-smoke-test:${tagVersion}"
+}
+
+task publishSmokeTestDockerImage(type: DockerPushImage) {
+    dependsOn buildSmokeTestDockerImage
+    imageName = buildSmokeTestDockerImage.tag
+}

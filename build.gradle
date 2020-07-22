@@ -1,0 +1,129 @@
+buildscript {
+	ext {
+		reactorBomVersion = 'Californium-SR2'
+		springBootVersion = '2.1.0.RELEASE'
+		lombokVersion = '1.18.10'
+		swaggerAnnotations = '1.5.16'
+		junitVersion = '4.12'
+		orikaVersion = '1.8.0'
+		billingToolsVersion = '0.8.0-rc2'
+		dockerPluginVersion = '3.2.0'
+		grGitVersion = '1.7.2'
+		assertJVersion = '3.9.0'
+		annotationProcessorVersion = '2.1.0.RELEASE'
+		apiAmountUtils = '0.10.0-rc3'
+		commonsIo = '2.6'
+		aspectjVersion = '1.9.4'
+		authzVersion = '0.1.10'
+		braveVersion = '5.5.1'
+		mockitoVersion = '2.23.0'
+		guavaVersion = '28.1-jre'
+		testng = '6.14.2'
+		restAssuredVersion = '3.0.0'
+		mockitoVersion = '3.0.0'
+		hamcrestVersion = '2.1'
+		wiremockVersion = '1.58'
+		prometheusVersion = '1.1.2'
+	}
+
+	repositories {
+		mavenLocal()
+		maven { url "https://artifactory.appdirect.tools/artifactory/repo" }
+		mavenCentral()
+		jcenter()
+		maven { url "https://plugins.gradle.org/m2/" }
+	}
+	dependencies {
+		classpath("org.springframework.boot:spring-boot-gradle-plugin:${springBootVersion}")
+		classpath("com.appdirect.billing.tools:swagger-codegen-spring-template:${billingToolsVersion}")
+		classpath("com.appdirect.billing.tools:swagger-codegen-gradle-plugin:${billingToolsVersion}")
+		classpath("com.appdirect.billing.tools:swagger-codegen-retrofit-template:${billingToolsVersion}")
+		classpath("junit:junit:${junitVersion}")
+	}
+}
+
+plugins {
+	id 'idea'
+	id "net.ltgt.apt" version "0.14"
+}
+
+group = 'com.appdirect.tika'
+
+project.version = project.properties['version']!="unspecified" ? project.properties['version'].toString() : 'local'
+ext.version = project.version
+
+print 'projectVersion: ' + project.version + '\n'
+
+ext {
+	dockerRegistry = 'docker.appdirect.tools'
+	dockerName = "${dockerRegistry}/appdirect-tika/tika"
+}
+
+allprojects {
+	apply plugin: 'jacoco'
+	repositories {
+		mavenLocal()
+		maven { url "https://artifactory.appdirect.tools/artifactory/repo" }
+		mavenCentral()
+		jcenter()
+		maven { url "https://plugins.gradle.org/m2/" }
+	}
+	apply plugin: 'java'
+	apply plugin: 'idea'
+	clean.doFirst {
+		delete "${projectDir}/out/"
+	}
+}
+
+subprojects {
+
+	group project.parent.group
+	version project.parent.version
+
+	sourceCompatibility = 1.8
+
+	apply plugin: 'net.ltgt.apt'
+	apply plugin: 'io.spring.dependency-management'
+
+	dependencyManagement {
+		imports {
+			mavenBom "io.projectreactor:reactor-bom:${reactorBomVersion}"
+		}
+	}
+
+	processResources {
+		filesMatching("**/**.yml") {
+			//expand(project.properties)
+		}
+	}
+
+    jacocoTestReport {
+        additionalSourceDirs = files(sourceSets.main.allSource.srcDirs)
+        sourceDirectories = files(sourceSets.main.allSource.srcDirs)
+        classDirectories = files(sourceSets.main.output)
+
+        reports {
+            csv.enabled false
+            html.enabled true
+            xml.enabled true
+        }
+    }
+    
+	test {
+		useJUnit()
+	}
+
+	dependencies {
+		compile("net.rakugakibox.spring.boot:orika-spring-boot-starter:${orikaVersion}")
+		compile("org.projectlombok:lombok:${lombokVersion}")
+		annotationProcessor "org.projectlombok:lombok:${lombokVersion}"
+		annotationProcessor "org.springframework.boot:spring-boot-configuration-processor:${annotationProcessorVersion}"
+		implementation "com.appdirect.billing.tools:api-amount-utils:${apiAmountUtils}"
+		testCompileOnly "org.projectlombok:lombok:${lombokVersion}"
+		testAnnotationProcessor "org.projectlombok:lombok:${lombokVersion}"
+	}
+}
+
+apply from: 'gradle/publishing.gradle'
+apply from: 'gradle/docker.gradle'
+apply from: 'gradle/coverage.gradle'

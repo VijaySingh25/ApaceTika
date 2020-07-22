@@ -1,0 +1,16 @@
+dependencies {
+	implementation project(':domain')
+	implementation "io.swagger:swagger-annotations:${swaggerAnnotations}"
+	implementation "org.springframework.boot:spring-boot-starter-webflux:${springBootVersion}"
+	implementation "org.projectlombok:lombok:${lombokVersion}"
+	implementation "com.google.guava:guava:${guavaVersion}"
+	implementation "org.apache.tika:tika-core:1.24.1"
+	implementation "org.apache.tika:tika-parsers:1.24.1"
+
+	testImplementation "org.springframework.boot:spring-boot-starter-test:${springBootVersion}"
+	compile(
+			"io.projectreactor:reactor-core",
+	)
+}
+
+sourceSets.main.java.srcDirs += ["${buildDir}/swagger-code/src/main/java"]
